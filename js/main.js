@@ -11,16 +11,16 @@ Vue.component('todo-item', {
 Vue.component('columns', {
     template: `
         <div class="columns">
-            <column title="Первый столбец" :cards="firstColumn" @add-card="addCard('firstColumn', $event)" @remove-card="removeCard('firstColumn', $event)" @save-local-storage="saveToLocalStorage"></column>
-            <column title="Второй столбец" :cards="secondColumn" @add-card="addCard('secondColumn', $event)" @remove-card="removeCard('secondColumn', $event)" @save-local-storage="saveToLocalStorage"></column>
-            <column title="Третий столбец" :cards="thirdColumn" @add-card="addCard('thirdColumn', $event)" @remove-card="removeCard('thirdColumn', $event)" @save-local-storage="saveToLocalStorage"></column>
+            <column title="Новые" :cards="newColumn" @add-card="addCard('newColumn', $event)" @remove-card="removeCard('newColumn', $event)" @save-local-storage="saveToLocalStorage"></column>
+            <column title="В процессе" :cards="inProgressColumn" @remove-card="removeCard('inProgressColumn', $event)" @save-local-storage="saveToLocalStorage"></column>
+            <column title="Выполненные" :cards="completedColumn" @remove-card="removeCard('completedColumn', $event)" @save-local-storage="saveToLocalStorage"></column>
         </div>
         `,
     data() {
         return {
-            firstColumn: [],
-            secondColumn: [],
-            thirdColumn: []
+            newColumn: [],
+            inProgressColumn: [],
+            completedColumn: []
         }
     },
     created() {
@@ -28,17 +28,21 @@ Vue.component('columns', {
     },
     methods: {
         addCard(column, customTitle) {
-            if (column === 'firstColumn' && this.firstColumn.length >= 3) {
-                alert('Достигнуто максимальное количество карточек в первом столбце.');
+            if (this[column].length >= 3) {
+                alert(`Достигнуто максимальное количество карточек в столбце "${column}".`);
                 return;
             }
-            if (column === 'secondColumn' && this.secondColumn.length >= 5) {
-                alert('Достигнуто максимальное количество карточек во втором столбце.');
-                return;
-            }
-            const newCard = { title: customTitle || 'Новая заметка', items: [] };
+            const newCard = {
+                title: customTitle || 'Новая заметка',
+                items: [
+                    { text: '', completed: false },
+                    { text: '', completed: false },
+                    { text: '', completed: false }
+                ],
+                status: column === 'newColumn' ? 'Новые' : (column === 'inProgressColumn' ? 'В процессе' : 'Выполненные')
+            };
             this[column].push(newCard);
-            this.saveToLocalStorage(); // Сохраняем изменения при добавлении карточки
+            this.saveToLocalStorage();
         },
         removeCard(column, cardIndex) {
             this[column].splice(cardIndex, 1);
@@ -46,17 +50,17 @@ Vue.component('columns', {
         },
         saveToLocalStorage() {
             localStorage.setItem('todo-columns', JSON.stringify({
-                firstColumn: this.firstColumn,
-                secondColumn: this.secondColumn,
-                thirdColumn: this.thirdColumn
+                newColumn: this.newColumn,
+                inProgressColumn: this.inProgressColumn,
+                completedColumn: this.completedColumn
             }));
         },
         loadFromLocalStorage() {
             const data = JSON.parse(localStorage.getItem('todo-columns'));
             if (data) {
-                this.firstColumn = data.firstColumn || [];
-                this.secondColumn = data.secondColumn || [];
-                this.thirdColumn = data.thirdColumn || [];
+                this.newColumn = data.newColumn || [];
+                this.inProgressColumn = data.inProgressColumn || [];
+                this.completedColumn = data.completedColumn || [];
             }
         }
     }
@@ -68,7 +72,7 @@ Vue.component('column', {
         <div class="column">
             <h2>{{ title }}</h2>
             <card v-for="(card, index) in cards" :key="index" :card="card" @remove-card="removeCard(index)" @save-local-storage="saveToLocalStorage"></card>
-            <button @click="addCardWithCustomTitle">Добавить заметку</button>
+            <button v-if="title === 'Новые'" @click="addCardWithCustomTitle">Добавить заметку</button>
         </div>
         `,
     methods: {
@@ -82,7 +86,7 @@ Vue.component('column', {
             }
         },
         saveToLocalStorage() {
-            this.$emit('save-local-storage'); // Передаем событие сохранения изменений в родительский компонент
+            this.$emit('save-local-storage');
         }
     }
 });
@@ -93,61 +97,106 @@ Vue.component('card', {
         <div class="card">
             <h3>{{ card.title }}</h3>
             <ul>
-                <list-item v-for="(item, index) in card.items" :key="index" :item="item" @toggle-complete="toggleComplete(index)" @remove-item="removeItem(index)"></list-item>
+                <li v-for="(item, index) in card.items" :key="index">
+                    <input type="text" v-model="item.text" @change="saveToLocalStorage">
+                    <input type="checkbox" v-model="item.completed" @change="toggleComplete(index); saveToLocalStorage">
+                    <button @click="removeItem(index)">Удалить</button>
+                </li>
+                <li v-if="card.items.length < 5">
+                    <button @click="addItem">Добавить пункт</button>
+                </li>
             </ul>
-            <button @click="addItem">Добавить пункт</button>
-            <button @click="removeCard">Удалить заметку</button>
+            <button v-if="card.status !== 'Выполненные'" @click="removeCard">Удалить заметку</button>
+            <p v-if="card.status === 'Выполненные'">Дата завершения: {{ card.completionDate }}</p>
         </div>
         `,
     methods: {
         addItem() {
-            const customText = prompt('Введите текст для нового пункта:');
-            if (customText) {
-                this.card.items.push({ text: customText, completed: false });
-                this.$emit('save-local-storage');
+            if (this.card.items.length < 5) {
+                this.card.items.push({ text: '', completed: false });
+                this.saveToLocalStorage();
+            } else {
+                alert('Достигнуто максимальное количество пунктов.');
             }
+        },
+        removeItem(index) {
+            this.card.items.splice(index, 1);
+            this.saveToLocalStorage();
         },
         removeCard() {
             this.$emit('remove-card');
         },
         toggleComplete(index) {
-            if (!this.card.items[index].completed) {
-                this.card.items[index].completed = true;
-            } else {
-                this.card.items[index].completed = false;
-            }
+            this.card.items[index].completed = !this.card.items[index].completed;
+            this.checkCardStatus();
+        },
+        saveToLocalStorage() {
+            this.checkCardStatus();
             this.$emit('save-local-storage');
         },
-        removeItem(index) {
-            this.card.items.splice(index, 1);
-            this.$emit('save-local-storage');
+        checkCardStatus() {
+            const completedItems = this.card.items.filter(item => item.completed).length;
+            const totalItems = this.card.items.length;
+            if (completedItems > 0 && completedItems === totalItems) {
+                this.card.status = 'Выполненные';
+                this.card.completionDate = new Date().toLocaleString();
+            } else if (completedItems > totalItems / 2) {
+                this.card.status = 'В процессе';
+            } else {
+                this.card.status = 'Новые';
+            }
         }
     }
 });
 
-Vue.component('list-item', {
-    props: ['item'],
-    template: `
-        <li>
-            <input type="checkbox" v-model="item.completed">
-            <span :class="{ completed: item.completed }">{{ item.text }}</span>
-            <button @click="$emit('remove-item')">Удалить</button>
-        </li>
-        `
-});
-
 new Vue({
     el: '#app',
-    methods: {
-        saveLocalStorage() {
-            localStorage.setItem('todo-columns', JSON.stringify({
-                firstColumn: this.firstColumn,
-                secondColumn: this.secondColumn,
-                thirdColumn: this.thirdColumn
-            }));
+    data() {
+        return {
+            newColumn: [],
+            inProgressColumn: [],
+            completedColumn: []
         }
     },
-    beforeUnmount() {
-        this.saveLocalStorage();
+    created() {
+        this.loadFromLocalStorage();
+    },
+    methods: {
+        addCard(column, customTitle) {
+            if (this[column].length >= 3) {
+                alert(`Достигнуто максимальное количество карточек в столбце "${column}".`);
+                return;
+            }
+            const newCard = {
+                title: customTitle || 'Новая заметка',
+                items: [
+                    { text: '', completed: false },
+                    { text: '', completed: false },
+                    { text: '', completed: false }
+                ],
+                status: column === 'newColumn' ? 'Новые' : (column === 'inProgressColumn' ? 'В процессе' : 'Выполненные')
+            };
+            this[column].push(newCard);
+            this.saveToLocalStorage();
+        },
+        removeCard(column, cardIndex) {
+            this[column].splice(cardIndex, 1);
+            this.saveToLocalStorage();
+        },
+        saveToLocalStorage() {
+            localStorage.setItem('todo-columns', JSON.stringify({
+                newColumn: this.newColumn,
+                inProgressColumn: this.inProgressColumn,
+                completedColumn: this.completedColumn
+            }));
+        },
+        loadFromLocalStorage() {
+            const data = JSON.parse(localStorage.getItem('todo-columns'));
+            if (data) {
+                this.newColumn = data.newColumn || [];
+                this.inProgressColumn = data.inProgressColumn || [];
+                this.completedColumn = data.completedColumn || [];
+            }
+        }
     }
 });
