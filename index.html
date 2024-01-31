@@ -11,7 +11,8 @@
 <body>
 <h2 class = 'card_center'>Ваши заметки</h2>
 <div id="app">
-    <columns></columns>
+    <columns title="Новые" :cards="newColumn" @add-card="addCard('newColumn', $event)" @remove-card="removeCard('newColumn', $event)" @save-local-storage="saveToLocalStorage" @move-card-to-in-progress="moveCardToInProgress" @move-card-to-completed="moveCardToCompleted" :is-first-column-locked="isFirstColumnLocked" @lock-first-column="lockFirstColumn"></columns>
+
 </div>
 </body>
 </html>
