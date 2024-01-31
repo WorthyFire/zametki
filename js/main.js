@@ -98,22 +98,18 @@ Vue.component('columns', {
             const index = this.newColumn.indexOf(card);
             if (index !== -1) {
                 if (this.inProgressColumn.length >= this.maxCards.inProgressColumn) {
-                    const firstColumnCompletedPercentage = this.newColumn.filter(card => {
-                        const completedItems = card.items.filter(item => item.completed).length;
-                        const totalItems = card.items.length;
-                        const completionPercentage = (completedItems / totalItems) * 100;
-                        return completionPercentage > 50;
-                    }).length;
-
-                    if (firstColumnCompletedPercentage > 0) {
-                        alert('Первый столбец заблокирован, так как во втором столбце максимальное количество карточек.');
-                        return;
-                    }
+                    alert('Столбец "В процессе" уже содержит максимальное количество карточек.');
+                    return;
                 }
 
                 this.newColumn.splice(index, 1);
                 this.inProgressColumn.push(card);
                 this.saveToLocalStorage();
+
+                // Проверяем количество карточек в столбце "В процессе" и блокируем первый столбец, если необходимо
+                if (this.inProgressColumn.length >= this.maxCards.inProgressColumn) {
+                    this.lockFirstColumn();
+                }
             }
         },
         moveCardToCompleted(card) {
@@ -162,7 +158,7 @@ Vue.component('column', {
 });
 
 Vue.component('card', {
-    props: ['card'],
+    props: ['card', 'isFirstColumnLocked'],
     template: `
         <div class="card">
             <h3>{{ card.title }}</h3>
@@ -172,7 +168,7 @@ Vue.component('card', {
                     <input type="checkbox" v-model="item.completed" @change="saveToLocalStorage" :disabled="card.status === 'Выполненные' || isFirstColumnLocked">
                     <button @click="saveItem(index)" v-if="item.editing && card.status !== 'Выполненные' && !isFirstColumnLocked">Сохранить</button>
                     <button @click="editItem(index)" v-else-if="!item.editing && card.status !== 'Выполненные' && !isFirstColumnLocked">Редактировать</button>
-                    <button @click="removeItem(index)" v-if="card.items.length > 3 && !isFirstColumnLocked">Удалить</button>
+                    <button @click="removeItem(index)" v-if="card.items.length > 3 && !isFirstColumnLocked && card.status !== 'Выполненные'">Удалить</button>
                 </li>
                 <li v-if="card.items.length < 5 && card.status !== 'Выполненные' && !isFirstColumnLocked">
                     <button @click="addItem">Добавить пункт</button>
@@ -192,13 +188,17 @@ Vue.component('card', {
             }
         },
         removeItem(index) {
-            if (this.card.items.length > 3 && !this.isFirstColumnLocked) {
+            if (this.card.items.length > 3 && !this.isFirstColumnLocked && this.card.status !== 'Выполненные') {
                 this.card.items.splice(index, 1);
                 this.saveToLocalStorage();
             }
         },
         removeCard() {
-            this.$emit('remove-card');
+            if (!this.isFirstColumnLocked && this.card.status !== 'Выполненные') {
+                this.$emit('remove-card');
+            } else {
+                alert('Нельзя удалять карточки в столбце "Выполненные" или если первый столбец заблокирован.');
+            }
         },
         saveItem(index) {
             if (this.card.status !== 'Выполненные' && !this.isFirstColumnLocked) {
@@ -244,6 +244,7 @@ new Vue({
             newColumn: [],
             inProgressColumn: [],
             completedColumn: [],
+            isFirstColumnLocked: false
         }
     },
     created() {
@@ -267,7 +268,6 @@ new Vue({
                 this.newColumn = data.newColumn || [];
                 this.inProgressColumn = data.inProgressColumn || [];
                 this.completedColumn = data.completedColumn || [];
-                // Установка состояния чекбоксов
                 this.newColumn.forEach(card => card.items.forEach(item => item.completed = !!item.completed));
                 this.inProgressColumn.forEach(card => card.items.forEach(item => item.completed = !!item.completed));
                 this.completedColumn.forEach(card => card.items.forEach(item => item.completed = !!item.completed));
