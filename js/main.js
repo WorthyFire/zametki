@@ -11,9 +11,9 @@ Vue.component('todo-item', {
 Vue.component('columns', {
     template: `
         <div class="columns">
-            <column title="Первый столбец" :cards="firstColumn" @add-card="addCard('firstColumn', $event)" @remove-card="removeCard('firstColumn', $event)"></column>
-            <column title="Второй столбец" :cards="secondColumn" @add-card="addCard('secondColumn', $event)" @remove-card="removeCard('secondColumn', $event)"></column>
-            <column title="Третий столбец" :cards="thirdColumn" @add-card="addCard('thirdColumn', $event)" @remove-card="removeCard('thirdColumn', $event)"></column>
+            <column title="Первый столбец" :cards="firstColumn" @add-card="addCard('firstColumn', $event)" @remove-card="removeCard('firstColumn', $event)" @save-local-storage="saveToLocalStorage"></column>
+            <column title="Второй столбец" :cards="secondColumn" @add-card="addCard('secondColumn', $event)" @remove-card="removeCard('secondColumn', $event)" @save-local-storage="saveToLocalStorage"></column>
+            <column title="Третий столбец" :cards="thirdColumn" @add-card="addCard('thirdColumn', $event)" @remove-card="removeCard('thirdColumn', $event)" @save-local-storage="saveToLocalStorage"></column>
         </div>
         `,
     data() {
@@ -36,9 +36,9 @@ Vue.component('columns', {
                 alert('Достигнуто максимальное количество карточек во втором столбце.');
                 return;
             }
-            const newCard = { title: customTitle || 'Новая заметка', items: [{ text: '', completed: false }] };
+            const newCard = { title: customTitle || 'Новая заметка', items: [] };
             this[column].push(newCard);
-            this.saveToLocalStorage();
+            this.saveToLocalStorage(); // Сохраняем изменения при добавлении карточки
         },
         removeCard(column, cardIndex) {
             this[column].splice(cardIndex, 1);
@@ -67,7 +67,7 @@ Vue.component('column', {
     template: `
         <div class="column">
             <h2>{{ title }}</h2>
-            <card v-for="(card, index) in cards" :key="index" :title="card.title" :items="card.items" @remove="removeCard(index)"></card>
+            <card v-for="(card, index) in cards" :key="index" :card="card" @remove-card="removeCard(index)" @save-local-storage="saveToLocalStorage"></card>
             <button @click="addCardWithCustomTitle">Добавить заметку</button>
         </div>
         `,
@@ -80,31 +80,47 @@ Vue.component('column', {
             if (customTitle) {
                 this.$emit('add-card', customTitle);
             }
+        },
+        saveToLocalStorage() {
+            this.$emit('save-local-storage'); // Передаем событие сохранения изменений в родительский компонент
         }
     }
 });
 
 Vue.component('card', {
-    props: ['title', 'items'],
+    props: ['card'],
     template: `
         <div class="card">
-            <h3>{{ title }}</h3>
+            <h3>{{ card.title }}</h3>
             <ul>
-                <list-item v-for="(item, index) in items" :key="index" :item="item" @toggle-complete="toggleComplete(index)"></list-item>
+                <list-item v-for="(item, index) in card.items" :key="index" :item="item" @toggle-complete="toggleComplete(index)" @remove-item="removeItem(index)"></list-item>
             </ul>
             <button @click="addItem">Добавить пункт</button>
-            <button @click="remove">Удалить заметку</button>
+            <button @click="removeCard">Удалить заметку</button>
         </div>
         `,
     methods: {
         addItem() {
-            this.items.push({ text: '', completed: false });
+            const customText = prompt('Введите текст для нового пункта:');
+            if (customText) {
+                this.card.items.push({ text: customText, completed: false });
+                this.$emit('save-local-storage');
+            }
         },
-        remove() {
-            this.$emit('remove');
+        removeCard() {
+            this.$emit('remove-card');
         },
         toggleComplete(index) {
-            this.items[index].completed = !this.items[index].completed;
+            if (!this.card.items[index].completed) {
+                this.card.items[index].completed = true;
+            } else {
+                this.card.items[index].completed = false;
+            }
+            this.$emit('save-local-storage');
+        },
+        removeItem(index) {
+            this.card.items.splice(index, 1);
+            this.$emit('save-local-storage');
         }
     }
 });
@@ -113,12 +129,25 @@ Vue.component('list-item', {
     props: ['item'],
     template: `
         <li>
-            <input type="checkbox" v-model="item.completed" @change="$emit('toggle-complete')">
+            <input type="checkbox" v-model="item.completed">
             <span :class="{ completed: item.completed }">{{ item.text }}</span>
+            <button @click="$emit('remove-item')">Удалить</button>
         </li>
         `
 });
 
 new Vue({
-    el: '#app'
+    el: '#app',
+    methods: {
+        saveLocalStorage() {
+            localStorage.setItem('todo-columns', JSON.stringify({
+                firstColumn: this.firstColumn,
+                secondColumn: this.secondColumn,
+                thirdColumn: this.thirdColumn
+            }));
+        }
+    },
+    beforeUnmount() {
+        this.saveLocalStorage();
+    }
 });

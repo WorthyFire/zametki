@@ -13,3 +13,6 @@
 .completed {
     text-decoration: line-through;
 }
+.card_center{
+    text-align: center;
+}
