@@ -1,18 +1,28 @@
+.header{
+    background-color: bisque;
+}
 .columns {
     display: flex;
     justify-content: space-between;
 }
+
 .column {
     width: 30%;
-    border: 1px solid #ccc;
+    border: 1px solid darkseagreen;
     padding: 10px;
+    border-radius: 10px; /* Добавляем закругления к столбцам */
 }
+
 .card {
     margin-bottom: 20px;
+    background-color: lightgreen;
 }
+
 .completed {
     text-decoration: line-through;
 }
-.card_center{
+
+.card_center {
     text-align: center;
+    background-color: bisque;
 }

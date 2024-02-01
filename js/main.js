@@ -47,6 +47,14 @@ Vue.component('columns', {
                 alert(`Можно добавлять заметки только в столбец "Новые".`);
                 return;
             }
+
+            // Проверяем количество карточек в столбце "В процессе" и блокируем добавление новой карточки,
+            // если в "В процессе" уже есть 5 карточек
+            if (this.inProgressColumn.length >= this.maxCards.inProgressColumn) {
+                alert('Столбец "В процессе" уже содержит максимальное количество карточек.');
+                return;
+            }
+
             const newCard = {
                 title: customTitle || 'Новая заметка',
                 items: [
@@ -76,7 +84,6 @@ Vue.component('columns', {
                 this.newColumn = data.newColumn || [];
                 this.inProgressColumn = data.inProgressColumn || [];
                 this.completedColumn = data.completedColumn || [];
-                // Установка состояния чекбоксов
                 this.newColumn.forEach(card => card.items.forEach(item => item.completed = !!item.completed));
                 this.inProgressColumn.forEach(card => card.items.forEach(item => item.completed = !!item.completed));
                 this.completedColumn.forEach(card => card.items.forEach(item => item.completed = !!item.completed));
