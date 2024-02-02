@@ -172,7 +172,7 @@ Vue.component('column', {
     template: `
         <div class="column">
             <h2>{{ title }}</h2>
-            <card v-for="(card, index) in cards" :key="index" :card="card" @remove-card="removeCard(index)" @save-local-storage="saveToLocalStorage" @move-card-to-in-progress="moveCardToInProgress" @move-card-to-completed="moveCardToCompleted" @move-card-to-new="moveCardToNew"></card>
+            <card v-for="(card, index) in cards" :key="index" :card="card" :locked="locked" @remove-card="removeCard(index)" @save-local-storage="saveToLocalStorage" @move-card-to-in-progress="moveCardToInProgress" @move-card-to-completed="moveCardToCompleted" @move-card-to-new="moveCardToNew"></card>
             <button v-if="title === 'Новые'" @click="addCardWithCustomTitle" ref="new_card" v-bind:disabled="locked">Добавить заметку</button>
         </div>
     `,
