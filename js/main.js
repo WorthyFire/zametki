@@ -11,8 +11,8 @@ Vue.component('todo-item', {
 Vue.component('columns', {
     template: `
         <div class="columns">
-            <column title="Новые" :cards="newColumn" :locked="locked" @add-card="addCard('newColumn', $event)" @remove-card="removeCard('newColumn', $event)" @save-local-storage="saveToLocalStorage" @move-card-to-in-progress="moveCardToInProgress" @move-card-to-completed="moveCardToCompleted"></column>
-            <column title="В процессе" :cards="inProgressColumn" @remove-card="removeCard('inProgressColumn', $event)" @save-local-storage="saveToLocalStorage" @move-card-to-in-progress="moveCardToInProgress" @move-card-to-completed="moveCardToCompleted"></column>
+            <column title="Новые" :cards="newColumn" :locked="locked" @add-card="addCard('newColumn', $event)" @remove-card="removeCard('newColumn', $event)" @save-local-storage="saveToLocalStorage" @move-card-to-in-progress="moveCardToInProgress" @move-card-to-completed="moveCardToCompleted" @move-card-to-new="moveCardToNew"></column>
+            <column title="В процессе" :cards="inProgressColumn" @remove-card="removeCard('inProgressColumn', $event)" @save-local-storage="saveToLocalStorage" @move-card-to-in-progress="moveCardToInProgress" @move-card-to-completed="moveCardToCompleted" @move-card-to-new="moveCardToNew"></column>
             <column title="Выполненные" :cards="completedColumn" @remove-card="removeCard('completedColumn', $event)" @save-local-storage="saveToLocalStorage"></column>
         </div>
     `,
@@ -113,6 +113,13 @@ Vue.component('columns', {
                 }
 
                 this.newColumn.splice(index, 1);
+                card.status = 'В процессе';
+
+                // Получаем текущее время
+                const currentTime = new Date().toLocaleString();
+                // Меняем комментарий на "Доработано" с указанием времени
+                card.comment = `Доработано (${currentTime})`;
+
                 this.inProgressColumn.push(card);
                 this.saveToLocalStorage();
                 this.checkLock();
@@ -128,6 +135,22 @@ Vue.component('columns', {
 
             this.checkLock();
         },
+        moveCardToNew(card) {
+            const index = this.inProgressColumn.indexOf(card);
+            if (index !== -1) {
+                this.inProgressColumn.splice(index, 1);
+                card.status = 'Новые';
+                const currentTime = new Date().toLocaleString();
+                if (this.checkCompletionPercentage(card) > 50) {
+                    card.comment = `Доработано (${currentTime})`;
+                    this.inProgressColumn.push(card);
+                } else {
+                    card.comment = `Отправлено на доработку (${currentTime})`;
+                    this.newColumn.push(card);
+                }
+                this.saveToLocalStorage();
+            }
+        },
         checkLock() {
             if (this.inProgressColumn.length >= this.maxCards.inProgressColumn) {
                 this.locked = true;
@@ -135,6 +158,11 @@ Vue.component('columns', {
                 this.locked = false;
             }
             this.newColumn.forEach(card => card.locked = this.locked);
+        },
+        checkCompletionPercentage(card) {
+            const completedItems = card.items.filter(item => item.completed).length;
+            const totalItems = card.items.length;
+            return (completedItems / totalItems) * 100;
         }
     }
 });
@@ -144,7 +172,7 @@ Vue.component('column', {
     template: `
         <div class="column">
             <h2>{{ title }}</h2>
-            <card v-for="(card, index) in cards" :key="index" :card="card" @remove-card="removeCard(index)" @save-local-storage="saveToLocalStorage" @move-card-to-in-progress="moveCardToInProgress" @move-card-to-completed="moveCardToCompleted"></card>
+            <card v-for="(card, index) in cards" :key="index" :card="card" @remove-card="removeCard(index)" @save-local-storage="saveToLocalStorage" @move-card-to-in-progress="moveCardToInProgress" @move-card-to-completed="moveCardToCompleted" @move-card-to-new="moveCardToNew"></card>
             <button v-if="title === 'Новые'" @click="addCardWithCustomTitle" ref="new_card" v-bind:disabled="locked">Добавить заметку</button>
         </div>
     `,
@@ -166,6 +194,9 @@ Vue.component('column', {
         },
         moveCardToCompleted(card) {
             this.$emit('move-card-to-completed', card);
+        },
+        moveCardToNew(card) {
+            this.$emit('move-card-to-new', card);
         }
     }
 });
@@ -175,6 +206,7 @@ Vue.component('card', {
     template: `
         <div class="card">
             <h3>{{ card.title }}</h3>
+            <p v-if="card.comment">{{ card.comment }}</p>
             <ul>
                 <li v-for="(item, index) in card.items" :key="index">
                     <input type="text" v-model="item.text" :disabled="!item.editing || card.status === 'Выполненные' || (card.status === 'В процессе') || card.locked">
@@ -233,18 +265,18 @@ Vue.component('card', {
             const totalItems = this.card.items.length;
             const completionPercentage = (completedItems / totalItems) * 100;
 
-            if (completionPercentage >= 100) {
+            if (completionPercentage === 100 && this.card.status === 'В процессе') {
                 this.card.status = 'Выполненные';
                 this.card.completionDate = new Date().toLocaleString();
                 this.$emit('move-card-to-completed', this.card);
-            } else if (completionPercentage > 50 && this.card.status === 'Новые' && this.locked) {
-                //  this.$emit('lock-first-column');
-            } else if (completionPercentage > 50 && this.card.status === 'Новые') {
-                this.$emit('move-card-to-in-progress', this.card);
-            } else if (completionPercentage === 100 && this.card.status === 'В процессе') {
-                // В этом блоке не нужно ничего делать, так как карточка уже находится в столбце "В процессе"
-            } else {
+            } else if (completionPercentage < 50 && this.card.status === 'В процессе') {
                 this.card.status = 'Новые';
+                const currentTime = new Date().toLocaleString();
+                this.card.comment = `Отправлено на доработку (${currentTime})`;
+                this.$emit('move-card-to-new', this.card);
+            } else if (completionPercentage > 50 && this.card.status === 'Новые') {
+                this.card.status = 'В процессе';
+                this.$emit('move-card-to-in-progress', this.card);
             }
         }
     }
